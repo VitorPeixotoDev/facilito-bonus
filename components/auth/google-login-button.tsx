@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
-import { signInWithGoogle } from "@/lib/auth/actions";
+import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 function GoogleIcon() {
   return (
@@ -31,13 +31,43 @@ function GoogleIcon() {
 }
 
 export function GoogleLoginButton({ next = "/" }: { next?: string }) {
-  const [error, action, pending] = useActionState(signInWithGoogle, null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  async function handleLogin() {
+    setPending(true);
+    setError(null);
+
+    try {
+      const supabase = createClient();
+      const safeNext = next.startsWith("/") ? next : "/";
+      const redirectTo =
+        safeNext === "/"
+          ? `${window.location.origin}/auth/callback`
+          : `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeNext)}`;
+
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo,
+        },
+      });
+
+      if (oauthError) {
+        setError("Não foi possível iniciar o login com o Google.");
+        setPending(false);
+      }
+    } catch {
+      setError("Não foi possível iniciar o login com o Google.");
+      setPending(false);
+    }
+  }
 
   return (
-    <form action={action} className="space-y-3">
-      {next !== "/" ? <input type="hidden" name="next" value={next} /> : null}
+    <div className="space-y-3">
       <button
-        type="submit"
+        type="button"
+        onClick={handleLogin}
         disabled={pending}
         className="flex w-full items-center justify-center gap-3 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-slate-800 shadow-lg transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
       >
@@ -49,6 +79,6 @@ export function GoogleLoginButton({ next = "/" }: { next?: string }) {
           {error}
         </p>
       ) : null}
-    </form>
+    </div>
   );
 }
